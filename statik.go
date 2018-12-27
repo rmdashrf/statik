@@ -37,14 +37,17 @@ const (
 var namePackage string
 
 var (
-	flagSrc        = flag.String("src", path.Join(".", "public"), "The path of the source directory.")
-	flagDest       = flag.String("dest", ".", "The destination path of the generated package.")
-	flagNoMtime    = flag.Bool("m", false, "Ignore modification times on files.")
-	flagNoCompress = flag.Bool("Z", false, "Do not use compression to shrink the files.")
-	flagForce      = flag.Bool("f", false, "Overwrite destination file if it already exists.")
-	flagTags       = flag.String("tags", "", "Write build constraint tags")
-	flagPkg        = flag.String("p", "statik", "Name of the generated package")
-	flagPkgCmt     = flag.String("c", "Package statik contains static assets.", "The package comment. An empty value disables this comment.\n")
+	flagSrc             = flag.String("src", path.Join(".", "public"), "The path of the source directory.")
+	flagDest            = flag.String("dest", ".", "The destination path of the generated package.")
+	flagNoMtime         = flag.Bool("m", false, "Ignore modification times on files.")
+	flagNoCompress      = flag.Bool("Z", false, "Do not use compression to shrink the files.")
+	flagForce           = flag.Bool("f", false, "Overwrite destination file if it already exists.")
+	flagTags            = flag.String("tags", "", "Write build constraint tags")
+	flagPkg             = flag.String("p", "statik", "Name of the generated package")
+	flagPkgCmt          = flag.String("c", "Package statik contains static assets.", "The package comment. An empty value disables this comment.\n")
+	flagNamespace       = flag.String("n", "__default__", "Namespace for registration")
+	flagCreateNewFolder = flag.Bool("nf", false, "Create a new folder for the package")
+	flagSourceFileName  = flag.String("o", nameSourceFile, "Name of generated source file")
 )
 
 // mtimeDate holds the arbitrary mtime that we assign to files when
@@ -61,13 +64,16 @@ func main() {
 		exitWithError(err)
 	}
 
-	destDir := path.Join(*flagDest, namePackage)
-	err = os.MkdirAll(destDir, 0755)
-	if err != nil {
-		exitWithError(err)
+	destDir := *flagDest
+	if *flagCreateNewFolder {
+		destDir = path.Join(*flagDest, namePackage)
+		err = os.MkdirAll(destDir, 0755)
+		if err != nil {
+			exitWithError(err)
+		}
 	}
 
-	err = rename(file.Name(), path.Join(destDir, nameSourceFile))
+	err = rename(file.Name(), path.Join(destDir, *flagSourceFileName))
 	if err != nil {
 		exitWithError(err)
 	}
@@ -197,16 +203,16 @@ func generateSource(srcPath string) (file *os.File, err error) {
 package %s
 
 import (
-	"github.com/rakyll/statik/fs"
+	"github.com/rmdashrf/statik/fs"
 )
 
 func init() {
 	data := "`, tags, comment, namePackage)
 	FprintZipData(&qb, buffer.Bytes())
-	fmt.Fprint(&qb, `"
-	fs.Register(data)
+	fmt.Fprintf(&qb, `"
+	fs.RegisterNamespace("%s", data)
 }
-`)
+`, *flagNamespace)
 
 	if err = ioutil.WriteFile(f.Name(), qb.Bytes(), 0644); err != nil {
 		return
